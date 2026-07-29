@@ -7,8 +7,23 @@ from torch.profiler import record_function
 
 from gpt_oss.torch.model import ModelConfig, RMSNorm
 from gpt_oss.torch.weights import Checkpoint
-from gpt_oss.triton.attention import attention, attention_ref
+from gpt_oss.triton.attention import attention_ref
 from gpt_oss.triton.moe import quantize_mx4, moe
+
+# Select the fast (prefill) attention kernel via env var so the same codebase can
+# be run as two "versions": the standard reference Triton kernel or the optimized
+# Gluon (Hopper WGMMA + TMA) kernel. Both expose an identical `attention` API.
+# `attention_ref` always comes from attention.py (the gluon module has none) and
+# is used for the decode path (n_ctx == 1), which is unaffected by this choice.
+_ATTN_BACKEND = os.environ.get("GPT_OSS_ATTN_BACKEND", "standard").lower()
+if _ATTN_BACKEND == "gluon":
+    from gpt_oss.triton.attention_gluon import attention
+elif _ATTN_BACKEND in ("standard", "triton", ""):
+    from gpt_oss.triton.attention import attention
+else:
+    raise ValueError(
+        f"Unknown GPT_OSS_ATTN_BACKEND={_ATTN_BACKEND!r}; expected 'standard' or 'gluon'"
+    )
 
 
 class RotaryEmbedding(torch.nn.Module):

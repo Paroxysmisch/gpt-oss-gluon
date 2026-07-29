@@ -303,6 +303,38 @@ python -m gpt_oss.generate --backend triton gpt-oss-120b/original/
 
 If you encounter `torch.OutOfMemoryError`, make sure to turn on the expandable allocator to avoid crashes when loading weights from the checkpoint.
 
+### Attention backends (standard vs. Gluon) and benchmark
+
+The Triton implementation ships two interchangeable forward-attention kernels for
+the prefill path:
+
+- **standard** — the reference FlashAttention kernel in `gpt_oss/triton/attention.py`.
+- **gluon** — an optimized Hopper (WGMMA + TMA) kernel in `gpt_oss/triton/attention_gluon.py`.
+
+Select which one the model uses with the `GPT_OSS_ATTN_BACKEND` environment
+variable (default `standard`):
+
+```shell
+GPT_OSS_ATTN_BACKEND=gluon python -m gpt_oss.generate --backend triton gpt-oss-120b/original/
+```
+
+Only the prefill path differs — single-token decode uses the reference path for
+both. To compare the two kernels on wall-clock latency and tokens/sec (no
+checkpoint required), use the test bench. GPU deps live in the `bench` extra:
+
+```shell
+uv venv && source .venv/bin/activate
+uv pip install -e ".[bench]"
+python -m gpt_oss.triton.bench_attention --seqlens 1024,2048,4096 --iters 50
+```
+
+It verifies each kernel against `attention_ref` before timing, then prints
+latency, tokens/sec, achieved TFLOP/s, and a gluon-vs-standard speedup per config
+(sweeping sequence length and sliding-window mode). The Gluon backend requires a
+Triton build that includes `triton.experimental.gluon` (may need building Triton
+from source, as above); if it is unavailable the bench still runs the standard
+kernel and reports gluon as skipped.
+
 ## Reference Metal implementation
 
 Additionally we are providing a reference implementation for Metal to run on Apple Silicon. This implementation is not production-ready but is accurate to the PyTorch implementation.

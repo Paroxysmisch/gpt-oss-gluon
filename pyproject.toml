@@ -25,6 +25,12 @@ version = "0.0.9"
 
 [project.optional-dependencies]
 triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
+# GPU-only dependencies for the attention test bench (gpt_oss/triton/bench_attention.py).
+# NOTE: the Gluon backend needs `triton.experimental.gluon`, only present in recent
+# Triton; the GH200 may need Triton built from source (see README Triton section).
+# The standard backend works on the pinned triton>=3.4, and the bench degrades
+# gracefully — benchmarking the standard kernel and reporting gluon as skipped.
+bench = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
 torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
 test = ["pytest>=8.4.1", "httpx>=0.28.1"]
